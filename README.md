@@ -1,2 +1,4 @@
-# hedonic-price-private-rents
-we build a hedonic price model of private rents in French Polynesia.
+# A hedonic price model for private rents in French Polynesia
+This work was realised during a Licence 3 (Bachelor) internship at the French Polynesian Statistics Institute. It lead to the production of a report in french. This report was written using quarto and is available at https://teiki-h.github.io/hedonic-price-private-rent.html .
+
+Using the data collected between 2021 and 2024 from “Enquête Loyers et Charges” (Rents and Charges Survey) of the French Polynesian Statistics Institute, this paper develops a hedonic price model of private rents. The response variable of this model is the rent, including charges, of private dwelling on the islands of Tahiti and Moorea. So as to choose the best explanatory variables 270 models were calculated and compared using their Bayesian and Akaike Information Criterion. The performance of the developped model are presented in Annexe [Performance du modèle].
