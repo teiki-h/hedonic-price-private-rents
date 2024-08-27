@@ -1,0 +1,589 @@
+---
+author:
+  - name: Teiki Heinis
+    affiliation: ENSAE student, intern at ISPF
+abstract-title: Abstract
+abstract: >
+  Using the data collected between 2021 and 2024 from "Enquête Loyers et Charges" (Rents and Charges Survey) of the French Polynesian Statistics Institute, this paper develops a hedonic price model of private rents. The response variable of this model is the rent, including charges, of private dwelling on the islands of Tahiti and Moorea. So as to choose the best explanatory variables 270 models were calculated and compared using their Bayesian and Akaike Information Criterion. The performance of the developped model are presented in Annexe [Performance du modèle].
+
+description: >
+  Licence 3 (Bachelor) internship report
+
+date: today
+title: "A hedonic price model for private rents in French Polynesia "
+title-block-banner: true
+format: 
+  html:
+    toc: true
+    toc-location: left-body
+    toc-depth: 2
+    html-math-method: katex
+    css: styles.css
+    code-links:
+      - text: Code repository
+        icon: file-code
+        href: https://github.com/teiki-h/hedonic-price-private-rents
+editor: visual
+number-sections: true
+---
+
+```{css}
+#| echo: false
+p {
+  text-align: justify
+}
+```
+
+```{r}
+#| echo: false
+#| output: false
+source("src/1.functions.R")
+
+load("input/data_loyer.RData")
+load("output/models_analysis.RData")
+load("output/model_iteration.RData")
+
+DATA <- data_loyer[year(Periode)>=2021]
+
+source("src/3.data_preparation.R")
+model_parameter <- iterative[,.SD[length(iterative[,ID])]]
+source("src/6.model_calculation.R")
+source("src/7.model_evaluation.R")
+```
+
+# [Résumé]{.smallcaps}
+
+L'objectif de ce travail est de construire un modèle hédonique des loyers sur Tahiti et Moorea, c'est-à-dire trouver une fonction des caractéristiques du logement permettant d'estimer le loyer de celui-ci. Ce travail est une tentative de reproduction d'un travail similaire de l'Office Fédérale Suisse (Fourcade, 2022) sur les données recueillies par l'Institut de la Statistique de Polynésie Française (ISPF).
+
+Le modèle construit est Log-linéaire. Sa forme est décrite ci-dessous, à savoir que certaines caractéristiques des logements ne sont pas codées par une seule variable mais par plusieurs variables indicatrices (*dummy variables*) des différentes modalités de ces caractéristiques. Les coefficients du modèle sont présentés en annexe \[[**Modèle**]{.smallcaps}\]. Les coefficients du modèle ont été estimés par la méthode des carrés ordinaire en prenant 4393 observations de loyers sur 1232 logements différents.
+
+$$
+\begin{align*}
+\log(\mathrm{loyer}) =&\beta_0 + \beta_1 \; \mathrm{commune} & \\
+&+ \beta_2 \; \mathrm{nombre\ de\ chambre} \;+ \beta_3 \; \mathrm{surface\ habitable}\\
+&+ \beta_4 \; \mathrm{meublé} \\
+&+ \beta_5 \; \mathrm{piscine} \; + \beta_6 \; \mathrm{type\ de\ construction}\\
+&+\beta_7 \; \mathrm{taxes} \;+ \beta_{8} \; \mathrm{charges\ copro} \;+ \beta_{9} \; \mathrm{charge\ jardinage} \;+ \beta_{10} \; \mathrm{charge\ ordures} \;+ \beta_{11} \; \mathrm{charge\ gardiennage}\\
+&+ \varepsilon
+\end{align*}
+$$
+
+Pour choisir les variables explicatives retenues dans ce modèle, on a calculé plusieurs centaines de modèles incluant plus ou moins de variables explicatives avant de comparer ces modèles par le biais du *Bayesian Information Criterion* et de l'*Akaike Information Criterion.*
+
+Le $R^2$ ajusté de ce modèle est de 0.7163 sur les données d'entraînement mais chute à 0.5996 sur les loyers relevés entre 2015 et 2018 ce qui semble indiquer un léger *overfit*. Le modèle reste tout de même assez performant, ayant une erreur moyenne d'estimation des loyers de 20 000 xpf environ (environ 170 €).
+
+Les résidus ont une espérance nulle, ne sont pas corrélés aux estimations des loyers, ne suivent pas une loi normale et n'ont pas une variance constante (hétéroscédasticité). L'hétéroscédasticité et la non normalité invalide les t-test des coefficients du modèle.\
+Cependant, les résidus suivent une distribution quasi-normale et ont une variance qui semble assez stable (faible hétéroscédasticité), aussi on peut tout de même garder le modèle développé mais il convient d'analyser ses prévisions avec précaution.
+
+On arrive à la conclusion que les données récoltées par l'ISPF sont suffisantes pour construire un modèle hédonique mais que celles-ci nécessitent un traitement particulier. En effet, la quantité importante d'observations mobilisables peut paraître artificielle à la vue du faible nombre de logements interrogés (plusieurs observations donnant exactement les mêmes informations mais à des dates différentes).
+
+Enfin, il est proposé de réaliser une régression linéaire pondérée pour mieux mobiliser les données disponibles. Une telle régression est réalisée et donne des résultats similaires à ceux de la régréssion linéaire usuelle.
+
+# [Avant-propos]{.smallcaps}
+
+## [Motivation & objectif]{.smallcaps}
+
+Dans le calcul d'un indice des prix à la consommation, le sous indice des prix du groupe 4.1 de la COICOP se rapportant aux loyers d'habitation est particulièrement difficile à traiter. En effet, le marché locatif est caractérisé par une forte hétérogénéité des biens.\
+Les instituts de statistiques procèdent généralement à une enquête par échantillonnage stratifié de manière à ce que les biens interrogés soient représentatifs du parc locatif courant. Cependant, des biens d'une même strate peuvent avoir des caractéristiques très différentes[^1]. Ces différences de caractéristiques peuvent, dans le cadre d'un renouvellement des logements suivis, entraîner une variation de l'indice des loyers non représentative d'une variation globale des loyers. Aussi, plusieurs instituts utilisent des modèles hédoniques pour éviter ce phénomène. On peut citer l'Office fédérale de la Statistique (OFS en Suisse) qui procède à un réajustement des loyers basé sur un modèle hédonique ou Statistiques Canada qui calcule l'indice des loyers avec un tel modèle.
+
+[^1]: Par exemple, si les strates sont définies par zone géographique et âges des logements, deux biens peuvent appartenir à la même strate tout en ayant des superficies très différentes.
+
+Les modèles utilisés par les instituts de statistiques requièrent souvent un jeu de données très grand pour pouvoir déterminer les coefficients de ces modèles (près de cent mille observations pour l'OFS, dix mille observations pour Statistiques Canada).\
+Le but de ce travail est de voir si les données récupérées par l'ISPF permettent de réaliser un modèle similaire, propre à la Polynésie française. En particulier, on s'inspire beaucoup du travail réalisé par l'OFS et présenté dans [Fourcade, L. (2022), *Indice des loyers : rapport méthodologique*, Publication OFS]{.underline}. On se permet de mentionner aussi [*Keshishbanoosy & Taylor (2019), New approach for estimating the rent component of the Consumer Price Index*]{.underline} qui présente, entre autre, le modèle hédonique des loyers développé par Statistique Canada.
+
+## [Théorie de la demande hédonique]{.smallcaps}
+
+L'hypothèse centrale des modèles hédoniques est que le prix du bien ou service considéré est déterminé par ses caractéristiques. Ce genre de modèle est courant dans le domaine de l'immobilier.\
+Les instituts de statistiques du Canada et de la Suisse ont tous deux choisis comme modèle hédonique des modèles de forme Log-Linéaire, c'est-à-dire que le logarithme du loyer est égal à la somme d'une fonction affine en les caractéristiques du logement et d'un bruit. On suppose donc la forme suivante :
+
+$$
+\ln(\mathrm{loyer}) = \beta_0 + \sum_{c\, \in \,  \{\mathrm{variables\ explicatives}\}} \beta_c \; c \; \;+ \varepsilon
+$$\
+Ces instituts réalisent ensuite une régression linéaire de manière à déterminer les coefficients $\beta$.
+
+## [Enquête Loyers et Charges de l'ISPF]{.smallcaps}
+
+L'ISPF relève les loyers dans le cadre de l'Enquête Loyers et Charges. Le questionnaire de cette enquête est disponible en ligne[^2]. Cette enquête est réalisée sur Tahiti et Moorea uniquement. L'échantillon est présentement de 660 logements avec interrogation semestrielle et les non-réponses sont gérées par substitution[^3].\
+De cette enquête on peut obtenir 20 variables qui semblent être caractéristiques d'un logement. On a rangé ces variables par types (spatiale, caractéristiques du bail, de surface *etc.*). Les variables et leurs types sont disponibles en annexe \[[**Variables**]{.smallcaps}\].
+
+[^2]: Questionnaire de l'Enquête Loyers et Charge de l'ISPF : h[ttps://www.ispf.pf/content//uploads/Questionnaire_2023_6410d4e961.pdf](https://www.ispf.pf/content//uploads/Questionnaire_2023_6410d4e961.pdf).
+
+[^3]: La substitution étant décidée par l'enquêteur terrain, de même que le logement remplaçant.
+
+Il convient de remarquer que le format de l'enquête sans renouvellement et avec gestion de non-réponse par substitution peut rendre les données récoltées moins représentatives de la population générale. Aussi, le modèle développé ici peut être moins performant sur de nouvelles données dans le cas d'un renouvellement des logements interrogés.
+
+# [Méthodologie]{.smallcaps}
+
+## [Traitement des données]{.smallcaps}
+
+On a pris en entrée une table de données contenant les réponses au questionnaire de l'enquête loyers et charges. Celle-ci comportait des informations personnelles ainsi que des entrées incohérentes. Cette table contient 4393 observations pour 1229 logements différents entre 2021 et 2024.
+
+On a supprimé toutes les informations personnelles (nom, prénom, numéro de téléphone, *etc.*) des locataires ainsi que les informations les plus précises sur la localisation des logements contenues dans cette table. Pour la localisation, on ne conserve que la commune et le district des logements.\
+Dans la table, il y a trois informations sur le loyer : le loyer au décembre précédent, le loyer présent hors charges, le loyer présent charges comprises. Sur de nombreuses observations, le loyer hors charges est inférieur au loyer charges comprises. Aussi, on a décidé, de manière à avoir le loyer toutes charges comprises, de prendre le maximum entre les trois loyers fournis.\
+Enfin, on a remplacé les réponses invraisemblables (surface nulle, plus de 100 pièces, *etc.*) par des *Not Available*. On a aussi regroupé les modalités minoritaires des variables portant sur le nombre de pièces ensembles[^4].
+
+[^4]: Ces variables sont les variables `NBChambre` (qui indique le nombre de chambre), `NBSDB` (qui indique le nombre de salle de bain).
+
+La majorité des données que l'on utilise dans notre travail sont des variables catégorielles (pouvant prendre un nombre fini de valeurs). Par exemple, on code par un chiffre compris entre 1 et 7 le type de logement. Utiliser ce code dans une régression rendrait difficile l'interprétation des coefficients du modèle, aussi, pour intégrer dans notre régression des variables catégorielles, on utilise des *dummy variables*, ou variables muettes/fictives/indicatrices.\
+Le principe est le suivant : étant donné une variable catégorielle `var` à $n$ modalités numérotées de $1$ à $n$, on construit $n-1$ variables indicatrices[^5] (nos *dummy variables)* `var_1`, `var_2`, ... ,`var_n-1` où `var_i` prend la valeur $1$ si `var` prend la valeur $i$, $0$ sinon.\
+On calcule des *dummy variables* pour toutes nos variables catégorielles.
+
+[^5]: On ne mets pas $n$ indicatrice car sinon, la n-ième indicatrice serait linéairement dépendante des autres. En pratique, la modalité sans indicatrice est la modalité la plus présentes dans les données.
+
+## [Détermination du modèle]{.smallcaps}
+
+On rappelle que l'on cherche à trouver un modèle de la forme :
+
+$$
+\ln(\mathrm{loyer}) = \beta_0 + \sum_{c\, \in \,  \{\mathrm{variables\ explicatives}\}} \beta_c \; c \; \;+ \varepsilon
+$$\
+Où les coefficients $\beta$ seront évalués par la méthode des moindres carrés ordinaire.
+
+Avec la forme de modèle choisie, on peut calculer plusieurs modèles en prenant, ou non, certaines variables explicatives en compte. Mettre beaucoup de variables explicatives dans un modèle permet d'améliorer les prédictions du modèle sur les données d'entrainement, au risque que les prédictions du modèle sur d'autres données soient moins bonnes. Mettre trop peu de variables explicatives dans un modèle risque de réduire la qualité des prédictions du modèle. Aussi il nous faut choisir ni trop, ni trop peu de covariables dans notre modèle.
+
+Pour choisir un modèle ni trop simple, ni trop compliqué, on procède ici comme suit : on calcule plusieurs modèles, pour chacuns on calcule des statistiques qui nous permettent de les comparer, on choisit le meilleur modèle selon ces statistiques, on modifie le modèle retenue de manière à l'améliorer, on supprime à la main les variables explicatives qui nous semble superflue.\
+Cette démarche est décrite plus précisément ci-après.
+
+Ne pouvant calculer $20!$ modèles, on sélectionne plusieurs modèles qui peuvent être intéressants. Pour sélectionner les modèles, on a tout d'abord regroupé les variables explicatives selon leur type (spatiale, caractéristique du bail, *etc.*). Ces groupes de variables sont présentés dans la première table de l'annexe \[[**Variables**]{.smallcaps}\]. Ensuite, pour chacun de ces groupes de variables, on construit plusieurs paquets de variables. Les paquets de variables propres à chaque groupe sont présentés dans les tables de l'annexe \[[**Paquets de variables**]{.smallcaps}\]. Enfin, l'ensemble des modèles que l'on va calculer et comparer est construit en choisissant pour chaque modèle un paquet de variables par groupe de variables.
+
+Pour chaque modèle calculé, on calcule plusieurs statistiques. En particulier, on calcule les *Bayesian Information Criterion* (BIC) et *Akaike Information Criterion* (AIC) de chaque modèle[^6]. Ces valeurs permettent de comparer différents modèles. Elles sont croissantes en la complexité du modèle et décroissantes en la vraissemblance du modèle. Ainsi en prenant le modèle qui a les plus petites BIC et AIC on choisit un modèle qui colle bien aux données tout en étant le plus simple possible (ce qui permet d'éviter l'*overfit*).\
+Pour chaque modèle on calcule aussi le $R^2$, le $R^2$ ajusté, ainsi que les p-valeurs de plusieurs tests sur les résidus. Aucune de ces p-valeurs n'a permis de départager les modèles car tous les modèles ont eu des résultats similaires sur leurs résidus.
+
+[^6]: Les définitions de ces valeurs sont disponibles en annexe \[[**Définitions mathématiques**]{.smallcaps}\].
+
+Le modèle retenu a le plus petit BIC et le second plus petit AIC. On a choisis ce modèle plutôt que le modèle avec le plus petit AIC car le BIC a tendance à plus pénaliser la complexité du modèle que l'AIC.
+
+Le modèle retenu est ensuite affiné en retirant des variables explicatives tant que cela permet de diminuer son BIC.
+
+Ci-dessous, le résumé du modèle retenu.
+
+```{r}
+#| echo: false
+selected_model_summary
+```
+
+On décide de supprimer la variable explicative `CDestloyer` des variables explicatives du modèle car les *dummy variables* associées à cette variable explicative ont toutes des p-valeurs très élevées. Ce choix est aussi motivé par le faible nombre d'observations où la variable `CDestloyer` vaut 2,3 ou 4 (voir histogramme ci-dessous).
+
+```{r}
+#| echo: false
+#| fig-cap: "Répartition des observations par type de destinataire du loyer"
+dt <- DATA_Work
+dt <- dt %>%
+  group_by(CDestloyer) %>%
+  summarise(counts = n())
+ggplot(dt, aes(x = CDestloyer, y = counts)) +
+  geom_bar(fill = "#0073C2FF", stat = "identity")+
+  geom_text(aes(label = counts), vjust = -0.3)
+```
+
+# [Modèle]{.smallcaps}
+
+## [Forme du modèle]{.smallcaps}
+
+Le modèle retenu dans la partie précédente est le suivant :$$
+\begin{align*}
+\log(\mathrm{loyer}) =&\beta_0 + \beta_1 \; \mathrm{commune} & \\
+&+ \beta_2 \; \mathrm{nombre\ de\ chambre} \;+ \beta_3 \; \mathrm{surface\ habitable}\\
+&+ \beta_4 \; \mathrm{meublé} \\
+&+ \beta_5 \; \mathrm{piscine} \; + \beta_6 \; \mathrm{type\ de\ construction}\\
+&+\beta_7 \; \mathrm{taxes} \;+ \beta_{8} \; \mathrm{charges\ copro} \;+ \beta_{9} \; \mathrm{charge\ jardinage} \;+ \beta_{10} \; \mathrm{charge\ ordures} \;+ \beta_{11} \; \mathrm{charge\ gardiennage}\\
+&+ \varepsilon
+\end{align*}
+$$Cependant, comme expliqué précédemment en partie \[[**Traitement des données**]{.smallcaps}\], la plupart de ces variables sont des variables catégorielles qu'il convient de ne pas intégrer dans la régression directement. On remplace donc les variables catégorielles par plusieurs variables indicatrices de chaque modalité. Par exemple à la place de $\beta_1 \mathrm{commune}$ on a en réalité $\beta_1^1 \mathrm{commune\ 1} + \beta_1^2 \mathrm{commune\ 2}+ \dots$, où $\mathrm{commune\ 1}$ vaut 1 si le logement se situe dans la commune 1, 0 sinon.\
+Si une variable catégorielle a $n$ modalités, on créera $n-1$ variables indicatrices. La modalité pour laquelle on ne crée pas de variables indicatrices est la modalité la plus présente dans notre jeu de données et sera notre modalité de référence.
+
+Les variables du modèle et les estimations des coefficients associés sont données ci-dessous. On y retrouve aussi l'estimation de son écart type (*Std. Error*) et la p-valeur du t-test de Student qui est la probabilité d'obtenir l'estimation du coefficient indiqué si le coefficient réel est en fait nul.
+
+```{r}
+#| echo: false
+model_parameter[,CDestloyer:=FALSE]
+source("src/6.model_calculation.R")
+source("src/7.model_evaluation.R")
+selected_model_summary
+```
+
+En considérant une variable catégorielle, pour interpréter facilement les coefficients des *dummy variables* qui lui sont associées, il faut premièrement déterminer la modalité de cette variable catégorielle n'ayant pas de *dummy variable* associée, cette modalité sera notre modalité de référence. Ensuite étant donné la *dummy variable* associée à la modalité $i$ de cette variable catégorielle, en multipliant par cent le coefficient de cette *dummy variable* on obtient la différence de loyer, en pourcentage, entre un logement dont la variable catégorielle prend la modalité $i$ et un logement dont la variable catégorielle prend la modalité de référence.\
+Par exemple, pour le type de construction `CConstruction`, la modalité de référence est la modalité 3 (maison individuelle moderne). La modalité 1 (maison indiciduelle traditionnelle) a un coefficient de -0.183, on conclut qu'une maison individuelle tradionnelle aura un loyer 18.3 % moins élevé qu'une maison indiviuelle moderne, toutes choses égales par ailleurs.\
+
+## [Détail des variables sélectionnées]{.smallcaps}
+
+Dans toute cette partie, les codes se réfèrent à ceux entrés dans le questionnaire de l'enquête loyers et charges.
+
+### [Commune]{.smallcaps}
+
+La variable `CCom` code la commune des logements, on retrouve sur le site de l'INSEE le code de chaque commune de la Polynésie française. On trouve ci-dessous la répartition de nos observations en fonction des communes. Cela nous permet de voir que certaines communes comportent peu de relevés. En particulier, les commune 22 (Hitiaa O Te Ra), 48 (Taiarapu-Ouest) et 52 (Teva I Uta) ont peut être trop peu d'éléments.
+
+```{r}
+#| echo: false
+#| fig-cap: "Répartition des observations par commune"
+dt <- DATA_Work
+dt <- dt %>%
+  group_by(CCom) %>%
+  summarise(counts = n())
+ggplot(dt, aes(x = CCom, y = counts)) +
+  geom_bar(fill = "#0073C2FF", stat = "identity")+
+  geom_text(aes(label = counts), vjust = -0.3)
+```
+
+La commune la plus représentée parmi nos données est la commune de Papeete de code 35. Ainsi, la commune de Papeete est notre commune de référence, cela veut dire que l'analyse des coefficients des variables indicatrices se fait par rapport à celle de Papeete. Par exemple, la commune de Punaauia (code 38), a un coefficient associé de valeur -1.182e-2, toute chose égale par ailleurs, le loyer d'un logement à Punaauia sera donc 1.18% moins élevé que le loyer d'un logement à Papeete[^7].
+
+[^7]: Le modèle étant Log-linéaire on passe la valeurs -1.182e-2 à l'exponentielle : $\exp(-1.182e-2)=0.9882$. Le loyer d'un logement à Punaauia sera égal au loyer d'un logement à Papeete multipliée par 0.9882.
+
+### [Construction]{.smallcaps}
+
+On trouve ci-dessous la distribution du nombre d'observations en fonction du type de constructions (codé par la variable`CConstruction`) . On peut voir que les maisons individuelles modernes (code 3) sont majoritaires, il s'agit là de notre type de construction de référence.\
+Au vu de cet histogramme, il apparaît qu'il faudrait regrouper les "Immeubles style HLM" (code 4) et les "Immeubles collectifs autre style HLM" en une seule catégorie "Immeuble". Ce regroupement est en plus justifié par la faible différence de coefficient de `CConstruction_4` et `CConstruction_5`.\
+Il semble aussi judicieux de regrouper les logements de type 1,2 et 7 (respectivement maisons individuelles traditionelles et fare MTR) en un groupe "autres".
+
+```{r}
+#| echo: false
+#| fig-cap: "Répartition des observations par type de construction"
+dt <- DATA_Work
+dt <- dt %>%
+  group_by(CConstruction) %>%
+  summarise(counts = n())
+ggplot(dt, aes(x = CConstruction, y = counts)) +
+  geom_bar(fill = "#0073C2FF", stat = "identity")+
+  geom_text(aes(label = counts), vjust = -0.3)
+```
+
+### [Nombre de chambres]{.smallcaps}
+
+On trouve ci-dessous la distribution du nombre d'observations en fonction du nombre de chambre (codé par `NBChambre`). Le nombre de chambre de référence est de 2.\
+Il semble y avoir assez d'observation pour chaque groupe. Il ne serait en revanche pas dérangeant de regrouper les nombres de chambre en créant la catégorie "4 et plus". Ce choix peut être critiqué du fait que les logements à 5 chambres sont 6.28% plus chère que ceux à 4 chambres, toute chose égale par ailleurs, dans ce modèle[^8].
+
+[^8]: On obtient le résultat de 6% en faisant le calcul suivant. $\exp(\mathrm{coefficients\ 5\ chambres}) / \exp(\mathrm{coefficients\ 4\ chambres}) = 1.0629$
+
+```{r}
+#| echo: false
+#| fig-cap: "Répartition des observations par nombre de chambre"
+dt <- DATA_Work
+dt <- dt %>%
+  group_by(NBChambre) %>%
+  summarise(counts = n())
+ggplot(dt, aes(x = NBChambre, y = counts)) +
+  geom_bar(fill = "#0073C2FF", stat = "identity")+
+  geom_text(aes(label = counts), vjust = -0.3)
+```
+
+### [Statut d'occupation (meublé, non meublé)]{.smallcaps}
+
+On trouve ci-dessous la distribution du nombre d'observations en fonction du statut d'occupation du logement (codé par `COccupation)`. La majorité des locataires des logements interrogés logent dans des meublés.
+
+En ce qui concerne le statut d'occupation, il semble y avoir assez d'observations des catégories "meublé" et "non meublé", en revanche la catégorie "accédant à la propriété" contient très peu d'entrées. Il conviendrait de retirer cette modalité pour transformer `COccupation` en une variable indiquant seulement si le logement est loué, meublé ou non.
+
+```{r}
+#| echo: false
+#| fig-cap: "Répartition des observations par statut d'occupation"
+dt <- DATA_Work
+dt <- dt %>%
+  group_by(COccupation) %>%
+  summarise(counts = n())
+dt <- setDT(dt)
+dt[,COccupation:=as.character(COccupation)]
+dt[COccupation=="1",COccupation:="loué meublé"]
+dt[COccupation=="2",COccupation:="loué non meublé"]
+dt[COccupation=="3",COccupation:="acédant à la propriété"]
+ggplot(dt, aes(x = COccupation, y = counts)) +
+  geom_bar(fill = "#0073C2FF", stat = "identity")+
+  geom_text(aes(label = counts), vjust = -0.3)
+```
+
+### [Piscine]{.smallcaps}
+
+On trouve ci-dessous la distribution du nombre d'observations en fonction de la présence de piscine (codé par `IsPiscine`). La majorité des logements ne possède pas de piscine . Cependant, il y a tout de même un nombre conséquent de logement ayant une piscine aussi la variable `IsPiscine` est une variable très discriminante qu'il convient de conserver.
+
+```{r}
+#| echo: false
+#| fig-cap: "Répartition des observations en fonction de la présence de piscine"
+dt <- DATA_Work
+dt <- dt %>%
+  group_by(IsPiscine) %>%
+  summarise(counts = n())
+dt <- setDT(dt)
+dt[,IsPiscine:=as.character(IsPiscine)]
+dt[IsPiscine=="1",IsPiscine:="oui"]
+dt[IsPiscine=="0",IsPiscine:="non"]
+ggplot(dt, aes(x = IsPiscine, y = counts)) +
+  geom_bar(fill = "#0073C2FF", stat = "identity")+
+  geom_text(aes(label = counts), vjust = -0.3)
+```
+
+## [Analyse du modèle]{.smallcaps}
+
+### Performance
+
+Pour mesurer la performance du modèle on considère plusieurs métriques. Tout d'abord le $R^2$ ajusté qui mesure la proportion de la variance du logarithme du loyer expliquée par nos variables explicatives. Ensuite, on considère aussi l'erreur absolue moyenne (MAE) et l'erreur quadratique moyenne (RMSE) ainsi que ces valeurs exprimées en franc pacifique.
+
+On peut mesurer la performance du modèle sur les données d'entrainement (*in-sample*) ou la mesurer sur des données différentes (*out-of-sample*). On trouve ci-dessous un tableau présentant les performances du modèle *in-sample* (2021-2024) et *out-of-sample* (2015-2018) ainsi que le code pour calculer les résultats *out-of-sample*.
+
+```{r}
+#|eval: false
+DATA <- data_loyer[(year(Periode)>=2015)]
+source("src/3.data_preparation.R")
+DATA <- DATA[(year(Periode)<=2018)]
+DATA_Work <- getDATAPresent(DATA,model_parameter,model_parameter[,ID])
+source("src/7.model_evaluation.R")
+```
+
+| Evaluation type           | $R^2$ adj. | MAE    | RMSE   | MAE en xpf | RMSE en xpf |
+|-----------------|-----------|-----------|-----------|-----------|-----------|
+| In-sample (2021-2024)     | 0.7163     | 0.1656 | 0.2192 | 20272 xpf  | 30029 xpf   |
+| Out-of-sample (2015-2018) | 0.5996     | 0.2213 | 0.2979 | 23039 xpf  | 34815 xpf   |
+| Out-of-sample (2006-2011) | 0.4226     | 0.2547 | 0.3590 | 26468 xpf  | 35407 xpf   |
+
+### [Analyse des résidus]{.smallcaps}
+
+Les résidus ne suivent pas, selon le test de Jarque-Bera[^9], une loi normale. Ils ont cependant une espérance nulle et le tracé, ci-dessous, de la densité empirique (en vert) des résidus ne semble pas très éloigné du tracé de la densité d'une loi normale (en rouge). Cette quasi normalité des résidus se retrouve sur le diagramme quantile-quantile normale.
+
+[^9]: Test cherchant à vérifier si des données ont le même kurtosis et coefficient d'asymétrie que la distribution normale ce qui permet de vérifier si ces données suivent une loi normale. Si la p-valeur de ce test est basse, on rejete l'hypothèse de normalités. Résultat du test disponible en annexe \[[**Résidus**]{.smallcaps}\].
+
+Ensuite, selon le test de Breusch-Pagan[^10], les résidus sont ne sont pas homoscédastiques (*i.e.* les variances des résidus ne sont pas les mêmes). Plus les résidus sont hétéroscédastiques, plus ils seront dispersés sur le nuage de points des résidus en fonction de l'estimation du loyer. Ce nuage de points se trouve ci-dessous et permet de voir que la dispersion n'est pas très grande, aussi, l'hétéroscédasticité ne doit pas être très prononcée.
+
+[^10]: Test cherchant à vérifier si les résidus d'un modèle linéaire sont homoscédastiques. Si la p-valeur de ce test est basse, on rejete l'hypothèse d'homoscédasticité. Résultat du test disponible en annexe \[[**Résidus**]{.smallcaps}\].
+
+Enfin, toujours sur ce nuage de points, on voit qu'il n'y a pas de corrélation entre les résidus et l'estimation des loyers.
+
+Les propriétés de non-normalité et d'hétéroscédasticité ne permettent pas de garantir les résultats usuelles des régressions linéaires. On ne peut pas, en particulier, affirmer que les estimations des loyers sont les meilleurs estimations non-biaisées. De plus, les t-test des coefficients sont invalidés.\
+Magré cela, les analyses précédentes ne sont pas à jeter du fait de la presque normalité des résidus et de la faible d'hétéroscédasticité de ceux-ci.
+
+```{r}
+#| echo: false
+dt <- data.table(residuals=selected_model$residuals)
+ggplot(dt,aes(x=residuals))+
+  geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)+
+  ggtitle("distribution des résidus")+
+  labs(y="densité",x="résidus")+
+  geom_area(stat = "function", fun = function(x) dnorm(x, mean = mean(selected_model$residuals), sd = sd(selected_model$residuals)), fill = NA,color="red") 
+```
+
+```{r}
+#| echo: false
+dt <- data.table(residuts=y-fittedval,type="1")
+ggplot(dt,aes(sample=residuts)) + 
+  stat_qq()+
+  stat_qq_line()+
+  labs(x="Théorique",y="résidus")+
+  ggtitle("qqplot normal des résidus")
+```
+
+```{r}
+#| echo: false
+dt <- data.table(residuts=selected_model$residuals,log_loyer=selected_model$fitted.values)
+ggplot(dt, aes(y=residuts,x=log_loyer))+
+  geom_point()+
+  labs(x="estimation de log(loyer)",y="résidus")+
+  ggtitle("Résidus VS estimations")+
+  geom_smooth(method=lm, se=FALSE)
+
+```
+
+# [Conclusion et ouverture]{.smallcaps}
+
+## [Limites]{.smallcaps}
+
+Il existe plusieurs limites à ce travail, on tente ici d'énoncer certaines de ces limites.
+
+Tout d'abord, ce modèle utilise des variables qui ne sont pas récoltées durant d'autres enquêtes que l'enquête loyers et charges. En particulier, ce modèle ne permet pas une estimation des loyers à partir du recenssement de la population. Ainsi, ce modèle ne permet que d'estimer les loyers des logements ayant déjà effectivement répondu à l'enquête loyers et charges.\
+Ensuite, l'analyses des variables retenues montre que certaines modalités de certaines variables sont présente sur trop peu d'observation et qu'il conviendrait de les regrouper ensembles.\
+Enfin, les données d'entrainement sont composé de 4393 observations pour 1232 logements différents. Ce faible nombre de logements différents rapporté aux nombre totales d'observation peut fausser les estimations des coefficients et être la source d'une inflation du $R^2$.
+
+## [Conclusion]{.smallcaps}
+
+A partir des données de l'enquête loyers et charges de l'ISPF, on arrive à faire un modèle hédonique des loyers avec une performance qui semble convenable sur les données d'entraînement (loyers relevés en 2021-2024) avec un $R^2$ ajusté de 0.7163 qui tombe à 0.5996 pour les loyers relevés entre 2015 et 2018, pour une erreur moyenne d'estimation des loyers proche des 20 000 xpf (environ 170 €). Cette faible baisse de $R^2$ ajusté peut indiquer un léger *overfit.*
+
+De plus, ce modèle a des performances qui chutent lorsqu'il est évalué sur les loyers relevés entre 2006 et 2011. Cette chute de performance est à relativiser car le coût de la vie entre 2006 et 2024 est bien différent.
+
+Le modèle souffre en revanche d'un problème majeur : malgré un grand nombre d'observations dans nos données d'entrainement (4393) il y a peu de logements différents (1232 logements différents). Cela veut dire que les loyers et caractéristiques d'un même logement ont été utilisés plusieurs fois dans la régression (en effet un même logement est interrogé deux fois par an). Cette réutilisation d'un même logement permet d'augmenter le nombre d'observations mais cette augmentation est quelque peu artificielle. De plus, cela donne un poids plus grand aux logements ayant répondu plusieurs fois à l'enquête loyers et charges entre 2021 et 2024.
+
+En conclusion, les données récoltées par l'ISPF dans le cadre l'enquêtre loyers et charges sont suffisantes pour le calcul d'un modèle hédonique mais que celles-ci nécessitent un traitement particulier. En effet, la quantité importante d'observations mobilisables peut paraître artificielle à la vue du faible nombre de logements interrogés (plusieurs observations donnant exactement les même informations mais à des dates différentes).\
+Il est proposé, en ouverture, de pondérer les observations de manière à pouvoir garder un grand nombre d'observation.
+
+## [ouverture]{.smallcaps}
+
+Pour rappel, les coefficients sont déterminés en résolvant le programme de minimisation suivant :
+
+$$\arg\!\min_{\beta} \sum_{i \in \{ \mathrm{observations} \} } \left(\ln(\mathrm{loyer}_i)-\beta*\mathrm{caractéristique}_i \right)^2$$ Où $\beta = \left(\beta_0,\beta_1,\dots\right)$, $\mathrm{loyer}_i$ est le loyer de la i-ème observation, $\mathrm{caractéristique}_i$ est le vecteur des caractéristiques du logement de la i-ème observation. Cette expression se réécrie comme suit. $$\arg\!\min_{\beta} \sum_{l \in \{ \mathrm{logements} \} } \; \;  \sum_{j\in \{ \mathrm{observations\ du\ logements\ }l \} } \underbrace{\left(\ln(\mathrm{loyer}_j^l)-\beta*\mathrm{caractéristique}_j^l \right)^2}_{:=\left(\text{erreur}_{j,l}\right)^2}$$ Où $\mathrm{loyer}_j^l$ est le loyer de la j-ème observation du logement $l$, $\mathrm{caractéristique}_j^l$ est le vecteur des caractéristiques du logement $l$ à la j-ème observation de celui-ci. Avec cette nouvelle forme, on voit bien qu'un logement qui a été interrogé plusieurs fois va compter beaucoup plus qu'un logement n'ayant répondu qu'une seule fois.
+
+De manière à ce que chaque logement ait la même importance dans la détermination des coefficients $\beta$, on a effectué une régression linéaire sur le même modèle cette fois-ci par la méthode des moindres carrés pondérés. Le poids attribué à $\text{erreur}_{j,l}$ étant l'inverse du nombre d'observations du logement $j$.\
+Ainsi, un logement interrogé quatre fois verra chacune des erreurs qui lui sont associées divisées par quatre.\
+A titre indicatif le programme de minisation que l'on effectue pour déterminer $\beta$ devient donc le suivant.
+
+$$\arg\!\min_{\beta} \sum_{l \in \{ \mathrm{logements} \} } \; \;  \sum_{j\in \{ \mathrm{observations\ du\ logements\ }l \} }\;\frac{1}{\# \{ \mathrm{observations\ du\ logements\ }l \} } \;\left(\text{erreur}_{j,l}\right)^2$$
+
+Les coefficients déterminés par cette méthode sont détaillés ci-dessous. Les deux régressions donnent des coefficients de même signe et d'à peu près la même valeur.
+
+```{r}
+#| echo: false
+DATA <- data_loyer[year(Periode)>=2021]
+source("src/3.data_preparation.R")
+
+model_parameter <- iterative[,.SD[length(iterative[,ID])]]
+model_parameter[,CDestloyer:=FALSE]
+
+source("src/6.model_calculation.R")
+
+source("src/8.weighted_model_calculation.R")
+source("src/7.model_evaluation.R")
+selected_model_summary
+```
+
+# [Annexe]{.smallcaps}
+
+## [Variables]{.smallcaps}
+
+| Groupe                      | Nombre de variables dans le groupe |
+|-----------------------------|------------------------------------|
+| Spatiale                    | 1                                  |
+| Caractéristique de surface  | 5                                  |
+| Caractéristique du bail     | 2                                  |
+| Caractéristique du logement | 3                                  |
+| Charges                     | 9                                  |
+
+: *groupe de type de variable*
+
+| Nom de la variable  | Signification                                                | Type                        |
+|-----------------|--------------------------------------|------------------|
+| `CCom`              | Commune                                                      | Spatiale                    |
+| `CConstruction`     | Type de construction                                         | Caractéristique du logement |
+| `CNBPieces`         | Nombre total de pièces                                       | Caractéristique de surface  |
+| `NBChambre`         | Nombre de chambres                                           | Caractéristique de surface  |
+| `NBSDB`             | Nombre de salle de bain et wc                                | Caractéristique de surface  |
+| `SurfaceT`          | Surface du terrain                                           | Caractéristique de surface  |
+| `SurfaceH`          | Surface habitable                                            | Caractéristique de surface  |
+| `COccupation`       | Statut d'occupation                                          | Caractéristique du bail     |
+| `CDestloyer`        | Destinataire du loyer                                        | Caractéristique du bail     |
+| `IsBureau`          | Présence d'une pièce à usage professionnel                   | Caractéristique du logement |
+| `IsPiscine`         | Présence d'une piscine                                       | Caractéristique du logement |
+| `IsChargesloc`      | Loyer comprenant des charges                                 | Charges                     |
+| `IsTaxeseauxord`    | Loyers comprennant des taxes communales                      | Charges                     |
+| `IsChargeCopro`     | Loyers comprennant des charges de copropriétés               | Charges                     |
+| `IsEntretienJardin` | Loyers comprennant des charges d'entretien du jardin         | Charges                     |
+| `IsGardien`         | Loyers comprennant des charges de gardiennage                | Charges                     |
+| `IsMenage`          | Loyers comprennant des charges de ménage                     | Charges                     |
+| `IsProvisionEau`    | Loyers comprennant des provisions pour l'eau                 | Charges                     |
+| `IsOrdureMenage`    | Loyers comprennant des provisions pour les ordures ménagères | Charges                     |
+| `IsAutreFrais`      | Loyers comprennant d'autres charges                          | Charges                     |
+
+: *table des variables étudiées*
+
+## [Paquets de variables]{.smallcaps}
+
+| Paquets  | `CCom` |
+|----------|--------|
+| Paquet 1 | X      |
+| Paquet 2 |        |
+
+: *Paquet du groupe de variables Spatiales*
+
+| Paquets  | `SurfaceH` | `SurfaceT` | `NBSDB` | `NBChambre` | `CNBPiece` |
+|----------|------------|------------|---------|-------------|------------|
+| Paquet 1 | X          |            |         | X           |            |
+| Paquet 2 |            | X          |         | X           |            |
+| Paquet 3 | X          | X          |         |             |            |
+| Paquet 4 |            |            | X       | X           | X          |
+| Paquet 5 | X          | X          | X       | X           | X          |
+
+: *Paquet du groupe de variables de caractéristique de surface*
+
+| Paquets  | `COccupation` | `CDestloyer` |
+|----------|---------------|--------------|
+| Paquet 1 |               |              |
+| Paquet 2 | X             |              |
+| Paquet 3 | X             | X            |
+
+: *Paquet du groupe de variables de caractéristique du bail*
+
+| Paquets  | `CConstruction` | `IsBureau` | `IsPiscine` |
+|----------|-----------------|------------|-------------|
+| Paquet 1 |                 |            |             |
+| Paquet 2 | X               |            |             |
+| Paquet 3 | X               | X          | X           |
+
+: *Paquet du groupe de variables de caractéristique du logement*
+
+| Paquets  | `IsTaxeseauxord` | `IsChargesloc` | `IsChargeCopro` | `IsEntretienJardin` | `IsGardien` | `IsMenage` | `IsProvisionEau` | `IsOrdureMenage` | `IsAutrefrais` |
+|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
+| Paquet 1 |                  |                |                 |                     |             |            |                  |                  |                |
+| Paquet 2 | X                | X              |                 |                     |             |            |                  |                  |                |
+| Paquet 3 | X                |                | X               | X                   | X           | X          | X                | X                | X              |
+
+: *Paquet du groupe de variables de caractéristique des charges*
+
+## [Définitions mathématiques]{.smallcaps}
+
+Etant donné un modèle linéaire :
+
+-   l'*Akaike Information Criterion* (AIC) est défini par :
+
+    $$
+    AIC \triangleq 2k-2\ln(\hat L)
+    $$où $k$ est le nombre de variables du modèle linéaire, $\hat L$ est le maximum de vraisemblance.
+
+-   Le *Bayesian Information Criterion* (BIC) défini par :
+
+    $$
+    BIC \triangleq  \ln(n)k-2\ln(\hat L)
+    $$où $n$ est le nombre d'observation utilisé dans la régression, $k$ est le nombre de variables du modèle linéaire, $\hat L$ est le maximum de vraisemblance.
+
+-   L'erreur absolue moyenne (MAE) est définie par :
+
+    $$
+    MAE \triangleq \frac{1}{n}\sum_{i=1}^n \lvert y_i -\hat y_i \rvert
+    $$où $n$ est le nombre d'observation utilisé dans la régression, $y_i$ la valeur de la variable expliquée pour la i-ème observation, $\hat y_i$ l'estimation de la variable expliquée pour la i-ème observation.
+
+-   L'erreur quadratique moyenne (RMSE) est définie par :
+
+    $$
+    RMSE \triangleq \sqrt{\frac{1}{n} \sum_{i=1}^n \left(y_i - \hat y_i \right)^2}
+    $$où $n$ est le nombre d'observation utilisé dans la régression, $y_i$ la valeur de la variable expliquée pour la i-ème observation, $\hat y_i$ l'estimation de la variable expliquée pour la i-ème observation.
+
+## [Modèle]{.smallcaps}
+
+```{r}
+#| echo: false
+source("src/1.functions.R")
+
+load("input/data_loyer.RData")
+load("output/models_analysis.RData")
+load("output/model_iteration.RData")
+
+DATA <- data_loyer[year(Periode)>=2021]
+
+source("src/3.data_preparation.R")
+
+model_parameter <- iterative[,.SD[length(iterative[,ID])]]
+model_parameter[,CDestloyer:=FALSE]
+
+source("src/6.model_calculation.R")
+source("src/7.model_evaluation.R")
+selected_model_summary
+```
+
+## [Résidus]{.smallcaps}
+
+### Test de Jarque-Bera
+
+```{r}
+jarque.bera.test(selected_model$residuals)
+```
+
+### Test de Breusch-Pagan
+
+```{r}
+bptest(selected_model,studentize = FALSE)
+```
+
+## [Performance du modèle]{.smallcaps}
+
+| Evaluation type           | $R^2$ adj. | MAE    | RMSE   | MAE en xpf | RMSE en xpf |
+|-----------------|-----------|-----------|-----------|-----------|-----------|
+| In-sample (2021-2024)     | 0.7163     | 0.1656 | 0.2192 | 20272 xpf  | 30029 xpf   |
+| Out-of-sample (2015-2018) | 0.5996     | 0.2213 | 0.2979 | 23039 xpf  | 34815 xpf   |
+| Out-of-sample (2006-2011) | 0.4226     | 0.2547 | 0.3590 | 26468 xpf  | 35407 xpf   |
+
+## [Bibliographie]{.smallcaps}
+
+1.  Fourcade, L. (2022), *Indice des loyers : rapport méthodologique*, Publication OFS.
+
+2.  Keshishbanoosy & Taylor (2019)*, New approach for estimating the rent component of the Consumer Price Index*, Statistics Canada.

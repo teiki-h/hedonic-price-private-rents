@@ -1,0 +1,2 @@
+DATA_Work <- getDATAPresent(DATA,model_parameter,model_parameter[,ID])
+selected_model <- getLogLinModel(DATA_Work,"LoyerAct_Mont",unlist(names(model_parameter))[which(model_parameter[ID==model_parameter[,ID]]==TRUE)],VarNameList)
