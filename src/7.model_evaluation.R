@@ -16,3 +16,6 @@ names(selected_model.residuals_xpf) <- NULL
 
 mae.xpf <- mean(abs(selected_model.residuals_xpf))
 rmse.xpf <- sqrt(mean((selected_model.residuals_xpf)^2))
+
+mape <- mean(abs(y-fittedval)/y) #mape pour les log des loyers
+mape.xpf <- mean(abs(selected_model.residuals_xpf)/exp(y)) #mape pour les loyers exprimés en franc cfp
